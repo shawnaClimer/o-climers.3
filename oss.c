@@ -11,9 +11,19 @@
 #include <time.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/msg.h>
 
+//for message queue
+#define MSGSZ	12
+typedef struct msgbuf {
+	long mtype;
+	int mtext[MSGSZ];
+} message_buf;
+
+//for shared memory
 static int *shared;
 static int shmid;
+//for pids
 static pid_t *pidptr;
 
 void sighandler(int sigid){
@@ -22,7 +32,9 @@ void sighandler(int sigid){
 	//TODO access pids[] to kill each child
 	int i = 0;
 	while(pidptr[i] != '\0'){
-		kill(pidptr[i], SIGQUIT);
+		if(pidptr[i] != 0){
+			kill(pidptr[i], SIGQUIT);
+		}
 		i++;
 	}
 	//kill(0, SIGQUIT);
@@ -106,6 +118,33 @@ int main(int argc, char **argv){
 		endTime = atoi(z);
 	}
 	//puts(z);
+	
+	//message queue
+	int msqid;
+	key_t msgkey;
+	message_buf sbuf;
+	size_t buf_length;
+	
+	if((msgkey = ftok("oss.c", 2)) == -1){
+		perror("msgkey error");
+		return 1;
+	}
+	if((msqid = msgget(msgkey, IPC_CREAT | 0666)) < 0){
+		perror("msgget from oss");
+		return 1;
+	}
+	//message type 1
+	sbuf.mtype = 1;
+	sbuf.mtext[0] = 1;
+	buf_length = sizeof(sbuf.mtext) + 1;
+	//send message
+	if(msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
+		printf("%d, %d, %d, %d\n", msqid, sbuf.mtype, sbuf.mtext[0], buf_length);
+		perror("msgsnd");
+		return 1;
+	}else{
+		printf("message sent.\n");
+	}
 	
 	//shared memory
 	key_t key;
@@ -234,6 +273,11 @@ int main(int argc, char **argv){
 		perror("failed to delete shared memory");
 		return 1;
 	} */
-	
+	struct msqid_ds *buf;
+	//delete message queue
+	if(msgctl(msqid, IPC_RMID, buf) == -1){
+		perror("msgctl: remove queue failed.");
+		return 1;
+	}
 	return 0;
 }
