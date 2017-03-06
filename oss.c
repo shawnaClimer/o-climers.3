@@ -26,11 +26,13 @@ static int *shared;
 static int shmid;
 //for pids
 static pid_t *pidptr;
+//for message queue
+static int msqid;
 
 void sighandler(int sigid){
 	printf("Caught signal %d\n", sigid);
 	//send kill message to children
-	//TODO access pids[] to kill each child
+	//access pids[] to kill each child
 	int i = 0;
 	while(pidptr[i] != '\0'){
 		if(pidptr[i] != 0){
@@ -42,7 +44,16 @@ void sighandler(int sigid){
 	//cleanup shared memory
 	detachshared();
 	removeshared();
+	deletequeue();
 	exit(sigid);
+}
+int deletequeue(){
+	//delete message queue
+	struct msqid_ds *buf;
+	if(msgctl(msqid, IPC_RMID, buf) == -1){
+		perror("msgctl: remove queue failed.");
+		return -1;
+	}
 }
 int detachshared(){
 	if(shmdt(shared) == -1){
@@ -58,8 +69,7 @@ int removeshared(){
 	}
 }
 int main(int argc, char **argv){
-	//signal handler
-	signal(SIGINT, sighandler);
+	
 	
 	//getopt
 	extern char *optarg;
@@ -121,7 +131,7 @@ int main(int argc, char **argv){
 	//puts(z);
 	
 	//message queue
-	int msqid;
+	//int msqid;
 	key_t msgkey;
 	message_buf sbuf, rbuf;
 	size_t buf_length = 0;
@@ -147,7 +157,7 @@ int main(int argc, char **argv){
 		printf("message sent.\n");
 	}
 	//to use delete queue and to access msg_lspid
-	struct msqid_ds *buf;
+	//struct msqid_ds *buf;
 	
 	//shared memory
 	key_t key;
@@ -213,6 +223,8 @@ int main(int argc, char **argv){
 	pid_t pid;
 	int childsec, childns;//for time sent by child
 	while(totalProcesses < 100 && clock[0] < 2 && (nowtime - starttime) < endTime){
+		//signal handler
+		signal(SIGINT, sighandler);
 		
 		//increment "system" clock
 		clock[1] += 100;
@@ -222,13 +234,6 @@ int main(int argc, char **argv){
 		}
 		//check for messages from children
 		if(n > 0){
-			//pid = wait(&status);
-			//printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
-			//n--;
-			//TODO find pids[x] == pid
-			
-			//TODO set pids[x] = 0;
-			
 			//check mailbox for msg
 			//get time from child
 			errno = 0;
@@ -301,10 +306,13 @@ int main(int argc, char **argv){
 	} */
 	
 	//delete message queue
-	//struct msqid_ds *buf;
-	if(msgctl(msqid, IPC_RMID, buf) == -1){
-		perror("msgctl: remove queue failed.");
+	if(deletequeue() == -1){
 		return 1;
 	}
+	//struct msqid_ds *buf;
+	/* if(msgctl(msqid, IPC_RMID, buf) == -1){
+		perror("msgctl: remove queue failed.");
+		return 1;
+	} */
 	return 0;
 }
