@@ -122,8 +122,8 @@ int main(int argc, char **argv){
 	//message queue
 	int msqid;
 	key_t msgkey;
-	message_buf sbuf;
-	size_t buf_length;
+	message_buf sbuf, rbuf;
+	size_t buf_length = 0;
 	
 	if((msgkey = ftok("oss.c", 2)) == -1){
 		perror("msgkey error");
@@ -135,11 +135,11 @@ int main(int argc, char **argv){
 	}
 	//message type 1
 	sbuf.mtype = 1;
-	sbuf.mtext[0] = 1;
-	buf_length = sizeof(sbuf.mtext) + 1;
+	//sbuf.mtext[0] = 1;
+	//buf_length = sizeof(sbuf.mtext) + 1;
 	//send message
 	if(msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
-		printf("%d, %d, %d, %d\n", msqid, sbuf.mtype, sbuf.mtext[0], buf_length);
+		printf("%d, %d, %d, %d\n", msqid, sbuf.mtype);//, sbuf.mtext[0], buf_length);
 		perror("msgsnd");
 		return 1;
 	}else{
