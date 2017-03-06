@@ -146,6 +146,8 @@ int main(int argc, char **argv){
 	}else{
 		printf("message sent.\n");
 	}
+	//to use delete queue and to access msg_lspid
+	struct msqid_ds *buf;
 	
 	//shared memory
 	key_t key;
@@ -227,8 +229,8 @@ int main(int argc, char **argv){
 			
 			//TODO set pids[x] = 0;
 			
-			//TODO check mailbox for msg
-			//TODO get time from child
+			//check mailbox for msg
+			//get time from child
 			errno = 0;
 			if(msgrcv(msqid, &rbuf, MSGSZ, 2, MSG_NOERROR | IPC_NOWAIT) < 0){
 				if(errno != ENOMSG){
@@ -237,23 +239,28 @@ int main(int argc, char **argv){
 				}
 				//printf("message time up from user not received.\n");
 			}else{
-				printf("time up message from user received.\n");
 				childsec = rbuf.mtext[0];
 				childns = rbuf.mtext[1];
-				//pid = msg_lspid;
-				n--;
+				//pid = buf.msg_lspid;
+				printf("time up message from user received.\n");
+				
 				//write to file
-			FILE *logfile;
-			logfile = fopen(filename, "a");
-			if(logfile == NULL){
-				perror("Log file failed to open");
-				return -1;
+				FILE *logfile;
+				logfile = fopen(filename, "a");
+				if(logfile == NULL){
+					perror("Log file failed to open");
+					return -1;
+				}
+				fprintf(logfile, "Master: Child pid is terminating at my time %d.%d because it reached %d.%d in slave\n", clock[0], clock[1], childsec, childns);
+				fclose(logfile);
+				
+				pid = wait(&status);//child terminated
+				printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
+				n--;
+				//find pid in pids[]
+				
 			}
-			fprintf(logfile, "Master: Child pid is terminating at my time %d.%d because it reached %d.%d in slave\n", clock[0], clock[1], childsec, childns);
-			fclose(logfile);
-			}
-			//childsec = 0;//placeholder
-			//childns = 0;//placeholder
+				
 			
 			
 		}
@@ -268,8 +275,8 @@ int main(int argc, char **argv){
 			nowtime = now.tv_sec;
 		}
 	}
-	pid = wait(&status);
-	printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
+	//pid = wait(&status);
+	//printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
 	//terminate children
 	while(n > 0){
 		n--;
@@ -292,8 +299,9 @@ int main(int argc, char **argv){
 		perror("failed to delete shared memory");
 		return 1;
 	} */
-	struct msqid_ds *buf;
+	
 	//delete message queue
+	//struct msqid_ds *buf;
 	if(msgctl(msqid, IPC_RMID, buf) == -1){
 		perror("msgctl: remove queue failed.");
 		return 1;
