@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/msg.h>
+#include <errno.h>
 
 //for message queue
 #define MSGSZ	12
@@ -212,25 +213,36 @@ int main(int argc, char **argv){
 	while(totalProcesses < 100 && clock[0] < 2 && (nowtime - starttime) < endTime){
 		
 		//increment "system" clock
-		clock[1] += 1000;
+		clock[1] += 100;
 		if(clock[1] > 1000000000){
 			clock[0] += 1;
 			clock[1] -= 1000000000;
 		}
 		//check for messages from children
 		if(n > 0){
-			pid = wait(&status);
-			printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
-			n--;
+			//pid = wait(&status);
+			//printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
+			//n--;
 			//TODO find pids[x] == pid
+			
 			//TODO set pids[x] = 0;
 			
 			//TODO check mailbox for msg
 			//TODO get time from child
-			childsec = 0;//placeholder
-			childns = 0;//placeholder
-			
-			//write to file
+			errno = 0;
+			if(msgrcv(msqid, &rbuf, MSGSZ, 2, MSG_NOERROR | IPC_NOWAIT) < 0){
+				if(errno != ENOMSG){
+					perror("msgrcv in oss");
+					return 1;
+				}
+				//printf("message time up from user not received.\n");
+			}else{
+				printf("time up message from user received.\n");
+				childsec = rbuf.mtext[0];
+				childns = rbuf.mtext[1];
+				//pid = msg_lspid;
+				n--;
+				//write to file
 			FILE *logfile;
 			logfile = fopen(filename, "a");
 			if(logfile == NULL){
@@ -239,6 +251,11 @@ int main(int argc, char **argv){
 			}
 			fprintf(logfile, "Master: Child pid is terminating at my time %d.%d because it reached %d.%d in slave\n", clock[0], clock[1], childsec, childns);
 			fclose(logfile);
+			}
+			//childsec = 0;//placeholder
+			//childns = 0;//placeholder
+			
+			
 		}
 		
 		//TODO fork another child
@@ -251,6 +268,8 @@ int main(int argc, char **argv){
 			nowtime = now.tv_sec;
 		}
 	}
+	pid = wait(&status);
+	printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
 	//terminate children
 	while(n > 0){
 		n--;

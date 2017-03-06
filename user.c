@@ -42,8 +42,7 @@ int detachshared(){
 
 int main(int argc, char **argv){
 	
-	//signal handler
-	signal(SIGINT, sighandler);
+	
 	
 	//shared memory
 	key_t key;
@@ -99,28 +98,31 @@ int main(int argc, char **argv){
 	
 	//loop for critical section
 	int timeisup = 0;
-	//while(timeisup == 0){
-		//THIS IS NOT WORKING
+	while(timeisup == 0){
+		//signal handler
+		signal(SIGINT, sighandler);
+		
+		//look for message type 1 critical section "token"
 		if(msgrcv(msqid, &rbuf, MSGSZ, 1, 0) < 0){
-			printf("message not received.\n");
+			//printf("message not received.\n");
 		}else{
-						
-			//check time
+			printf("critical section token received.\n");			
+			//check time 
 			clock = shared;
-			printf("time is %d, %d", clock[0], clock[1]);
+			printf("time is %d, %d\n", clock[0], clock[1]);
 			if(clock[0] > endSec || clock[1] >= endNs){
 				timeisup = 1;
-				//TODO send message type 2
+				//send message type 2
 				sbuf.mtype = 2;//message type 2 for clock time
 				sbuf.mtext[0] = clock[0];
 				sbuf.mtext[1] = clock[1];
-				buf_length = sizeof(sbuf.mtext);
+				buf_length = sizeof(sbuf.mtext) + 1;
 				if(msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0){
 					printf("%d, %d\n", msqid, sbuf.mtype);
 					perror("time msgsend");
 					return 1;
 				}else{
-					printf("user time up message sent.\n");
+					printf("user time up message sent. %d, %d\n", sbuf.mtext[0], sbuf.mtext[1]);
 				}
 			}
 			//release critical section
@@ -128,17 +130,18 @@ int main(int argc, char **argv){
 			sbuf.mtype = 1;
 			//sbuf.mtext[0] = 1;
 			//buf_length = sizeof(sbuf.mtext) + 1;
+			buf_length = 0;
 			//send message
 			if(msgsnd(msqid, &sbuf, buf_length, IPC_NOWAIT) < 0) {
 				printf("%d, %d\n", msqid, sbuf.mtype);//, sbuf.mtext[0], buf_length);
 				perror("msgsnd");
 				return 1;
 			}else{
-				printf("user message sent.\n");
+				printf("critical section token sent.\n");
 			}
 		}
 		
-	//}
+	}
 	
 			
 	//code for freeing shared memory
