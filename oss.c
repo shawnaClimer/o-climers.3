@@ -227,7 +227,7 @@ int main(int argc, char **argv){
 		signal(SIGINT, sighandler);
 		
 		//increment "system" clock
-		clock[1] += 100;
+		clock[1] += 100000;
 		if(clock[1] > 1000000000){
 			clock[0] += 1;
 			clock[1] -= 1000000000;
@@ -246,7 +246,6 @@ int main(int argc, char **argv){
 			}else{
 				childsec = rbuf.mtext[0];
 				childns = rbuf.mtext[1];
-				//pid = buf.msg_lspid;
 				printf("time up message from user received.\n");
 				
 				//write to file
@@ -256,24 +255,40 @@ int main(int argc, char **argv){
 					perror("Log file failed to open");
 					return -1;
 				}
-				fprintf(logfile, "Master: Child pid is terminating at my time %d.%d because it reached %d.%d in slave\n", clock[0], clock[1], childsec, childns);
+				fprintf(logfile, "Master: Child pid is terminating at my time %d %d because it reached %d %d in slave\n", clock[0], clock[1], childsec, childns);
 				fclose(logfile);
 				
-				pid = wait(&status);//child terminated
+				pid = wait(&status);//make sure child terminated
 				printf("User process %ld exited with status 0x%x.\n", (long)pid, status);
 				n--;
 				//find pid in pids[]
+				int x;
+				for(x = 0; x < numSlaves; x++){
+					if(pids[x] == pid){
+						printf("found pid that terminated.\n");
+						//fork new process
+						pids[x] = fork();
+						if(pids[x] == -1){
+							perror("Failed to fork");
+							return 1;
+						}
+						if(pids[x] == 0){
+							execl("user", "user", NULL);
+							perror("Child failed to exec user");
+							return 1;
+						}
+						n++;
+						totalProcesses++;
+					}
+				}
 				
+		
 			}
 				
 			
 			
 		}
 		
-		//TODO fork another child
-		//totalProcesses++;
-		//n++;
-		//where pids[x] == 0, pids[x] = new child pid
 		
 		//get current time
 		if(clock_gettime(clockid, &now) == 0){
@@ -288,7 +303,7 @@ int main(int argc, char **argv){
 		kill(pids[n], SIGQUIT);
 	}
 	//kill(0, SIGQUIT);
-	
+	printf("%d total processes were created.\n", totalProcesses);
 	//code for freeing shared memory
 	if(detachshared() == -1){
 		return 1;
